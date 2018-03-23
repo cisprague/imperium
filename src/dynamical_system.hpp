@@ -4,29 +4,17 @@
 #ifndef dynamical_system_hpp
 #define dynamical_system_hpp
 
-#include <vector>
-#include <cmath>
 
-namespace Imperium {
+struct dynamical_system {
 
-  struct Dynamical_System {
+  // state and actions space dimensions
+  const unsigned short int sdim, adim;
 
-    // state and actions space dimensions
-    const int sdim, adim;
+  // constructor
+  dynamical_system (const unsigned short int & sdim_, const unsigned short int & adim_) : sdim(sdim_), adim(adim_) {};
 
-    // constructor
-    Dynamical_System (const int & sdim_, const int & adim_) : sdim(sdim_), adim(adim_) {};
-
-    // destructor
-    ~Dynamical_System (void) {};
-
-    // get state dimensions
-    const int & get_sdim (void) const {
-      return sdim;
-    };
-
-
-  };
+  // destructor
+  ~dynamical_system (void) {};
 
 };
 

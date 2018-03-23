@@ -1,0 +1,8 @@
+setup.py
+imperium.egg-info/PKG-INFO
+imperium.egg-info/SOURCES.txt
+imperium.egg-info/dependency_links.txt
+imperium.egg-info/not-zip-safe
+imperium.egg-info/requires.txt
+imperium.egg-info/top_level.txt
+src/imperium.cpp
