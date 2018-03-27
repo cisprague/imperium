@@ -88,7 +88,7 @@ class BuildExt(build_ext):
         build_ext.build_extensions(self)
 
 setup(
-    name='imperium',
+    name='Imperium',
     version=__version__,
     author='Christopher Iliffe Sprague',
     author_email='christopher.iliffe.sprague@gmail.com',

@@ -4,22 +4,27 @@
 #ifndef imperium_hpp
 #define imperium_hpp
 
-#include "dynamical_system.hpp"
-#include "auv.hpp"
+#include "dynamics/dynamics.hpp"
 
 #include <pybind11/pybind11.h>
 namespace py = pybind11;
 
-PYBIND11_MODULE(imperium, m) {
+// modules
+py::module m("imperium");
+py::module m1(m.def_submodule("dynamics"));
 
-  py::class_<dynamical_system>(m, "dynamical_system")
+// dynamical model
+
+
+/*
+PYBIND11_MODULE(dynamics, m) {
+
+  py::class_<dynamics::base>(m, "base")
     .def(py::init<const unsigned short int &, const unsigned short int &>())
-    .def_readonly("sdim", & dynamical_system::sdim)
-    .def_readonly("adim", & dynamical_system::adim);
-
-  py::class_<auv>(m, "auv")
-    .def(py::init<const unsigned short int &, const unsigned short int &>());
+    .def_readonly("sdim", & dynamics::base::sdim)
+    .def_readonly("adim", & dynamics::base::adim);
 
 };
+*/
 
 #endif
