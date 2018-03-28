@@ -1,19 +1,32 @@
 // Christopher Iliffe Sprague
 // christopher.iliffe.sprague@gmail.com
 
-#ifdef auv_cylinder_tv_2d_hpp
-#define auv_cylinder_tv_2d_hpp
+#pragma once
+#include "dynamics.hpp"
+#include <pybind11/numpy.h>
+namespace py = pybind11;
 
-#include "dynamical_system.hpp"
+namespace dynamics {
 
-struct auv_cylinder_tv_2d : public dynamical_system {
+  struct auv_cylinder_tv_2d : public base {
 
-  // constructor
-  auv (const unsigned short int & sdim_, const unsigned short int & adim_) : dynamical_system(sdim, adim) {};
+    // parameters
+    const double g, T, m, L, alpha, rho, Cd, A;
 
-  // destructor
-  ~auv (void) {};
+    // constructor
+    auv_cylinder_tv_2d (const unsigned short int & sdim_, const unsigned short int & adim_) : base(sdim, adim) {};
+
+    // destructor
+    ~auv_cylinder_tv_2d (void) {};
+
+    // state equations of motion (SEOM)
+    const py::array_t<double> eom_state (
+      const py::array_t<double, py::array::forcecast> & state_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {
+
+    };
+
+  };
 
 };
-
-#endif

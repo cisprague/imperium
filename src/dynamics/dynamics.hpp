@@ -1,8 +1,9 @@
 // Christopher Iliffe Sprague
 // christopher.iliffe.sprague@gmail.com
 
-#ifndef dynamics_hpp
-#define dynamics_hpp
+#pragma once
+#include <pybind11/numpy.h>
+namespace py = pybind11;
 
 namespace dynamics {
 
@@ -17,8 +18,45 @@ namespace dynamics {
     // destructor
     ~base (void) {};
 
+    // state equations of motion (SEOM)
+    virtual const py::array_t<double> & eom_state (
+      const py::array_t<double, py::array::forcecast> & state_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    // SEOM Jacobian (SEOMJ)
+    virtual const py::array_t<double> & eom_state_jac (
+      const py::array_t<double, py::array::forcecast> & state_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    // fullstate equations of motion (FSEOM)
+    virtual const py::array_t<double> & eom_fullstate (
+      const py::array_t<double, py::array::forcecast> & fullstate_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    // FSEOM Jacobian (FSEOMJ)
+    virtual const py::array_t<double> & eom_fullstate_jac (
+      const py::array_t<double, py::array::forcecast> & fullstate_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    // lagrangian
+    virtual const double & lagrangian (
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    // hamiltonian
+    virtual const double & hamiltonian (
+      const py::array_t<double, py::array::forcecast> & fullstate_,
+      const py::array_t<double, py::array::forcecast> & control_
+    ) const {};
+
+    virtual const py::array_t<double> & pontryagin (
+      const py::array_t<double, py::array::forcecast> & fullstate_
+    ) const {};
+
   };
 
 };
-
-#endif
