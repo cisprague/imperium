@@ -1,28 +1,32 @@
 // Christopher Iliffe Sprague
 // christopher.iliffe.sprague@gmail.com
 
-#pragma once
+#include "dynamics.hpp"
 #include <pybind11/numpy.h>
 namespace py = pybind11;
 
 namespace dynamics {
 
-  struct base {
+  struct simple_spacecraft {
 
-    // state and actions space dimensions
-    const unsigned short int sdim, adim;
+    // constants
+    const double c1, c2;
 
     // constructor
-    base (const unsigned short int & sdim_, const unsigned short int & adim_) : sdim(sdim_), adim(adim_) {};
+    simple_spacecraft (const double & T_, const double & Isp_, const double & g0_) : c1(T_), c2(Isp_*g0). g0(g0_) {};
 
     // destructor
-    ~base (void) {};
+    ~simple_spacecraft (void) {};
 
     // state equations of motion (SEOM)
-    virtual const py::array_t<double> & eom_state (
+    const py::array_t<double> & eom_state (
       const py::array_t<double, py::array::forcecast> & state_,
       const py::array_t<double, py::array::forcecast> & control_
-    ) const {};
+    ) const {
+
+
+
+    };
 
     // SEOM Jacobian (SEOMJ)
     virtual const py::array_t<double> & eom_state_jac (
@@ -60,4 +64,8 @@ namespace dynamics {
 
   };
 
-};
+
+
+  }
+
+}
