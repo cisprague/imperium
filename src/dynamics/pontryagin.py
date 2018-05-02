@@ -13,24 +13,43 @@ class System(object):
         self.u  = control
         # state dynamics
         self.ds = dynamics
-        # Lagrangian cost functional
+        # lagrangian cost functional
         self.L  = lagrangian
-        # a priori parameters
-        self.alpha = Matrix([var for var in dynamics.free_symbols if all([var not in vec for vec in [state, control]])])
-        # a posteriori parameters
-        self.beta = Matrix([var for var in lagrangian.free_symbols if all([var not in vec for vec in [state, control, dynamics]])])
 
-    def pontryagin(self):
-
+        # system parameters
+        self.alpha = Matrix([
+            var for var in dynamics.free_symbols if all([
+                var not in vec for vec in [self.s, self.u]
+            ])
+        ])
+        # homotopy parameters
+        self.beta = Matrix([
+            var for var in lagrangian.free_symbols if all([
+                var not in vec for vec in [self.s, self.u, self.ds]
+            ])
+        ])
 
         # costate
-        l = Matrix([symbols('lambda_' + str(var)) for var in state])
-
+        self.l  = Matrix([symbols('lambda_' + str(var)) for var in self.s])
         # hamiltonian
-        H = l.dot(dynamics) + lagrangian
-
+        self.H  = self.l.dot(self.ds) + self.L
         # costate dynamics
-        dl = -Matrix([])
+        self.dl = -Matrix([self.H.diff(var) for var in self.s])
+
+        # jacobians
+        self.dds  = self.ds.jacobian(self.s)
+        self.ddl  = self.dl.jacobian(self.s)
+        self.fs   = Matrix([self.s, self.l])
+        self.dfs  = Matrix([self.ds, self.dl])
+        self.ddfs = self.dfs.jacobian(self.fs)
+
+        # optimal controls
+        self.us = list()
+
+        for var in self.u:
+            # maximimise hamiltonian
+            sol = solve(self.H.diff(var), var)
+            self.us.append(sol[0])
 
 
 if __name__ == "__main__":
@@ -60,4 +79,4 @@ if __name__ == "__main__":
     L = a*omega**2
     L
 
-    pontryagin(s, u, ds, L)
+    System(s, u, ds, L)
