@@ -1,4 +1,4 @@
-# Imperium
+# Imperium - Beta
 
 Optimal control for generic dynamical systems.
 
