@@ -2,7 +2,7 @@
 
 Optimal control for generic dynamical systems.
 
-## Models
+## Dynamical systems
 
 - [] Dubins car
 - [] Spacecraft
