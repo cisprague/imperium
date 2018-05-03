@@ -2,8 +2,10 @@
 # christopher.iliffe.sprague@gmail.com
 
 from sympy import *
+from sympy.utilities.codegen import *
+from sympy.parsing.sympy_parser import parse_expr
 
-class System(object):
+class system(object):
 
     def __init__(self, state, control, dynamics, lagrangian):
 
@@ -22,6 +24,7 @@ class System(object):
                 var not in vec for vec in [self.s, self.u]
             ])
         ])
+
         # homotopy parameters
         self.beta = Matrix([
             var for var in lagrangian.free_symbols if all([
@@ -44,39 +47,75 @@ class System(object):
         self.ddfs = self.dfs.jacobian(self.fs)
 
         # optimal controls
-        self.us = list()
+        self.uo = Matrix([solve(self.H.diff(var), var)[0] for var in self.u])
 
-        for var in self.u:
-            # maximimise hamiltonian
-            sol = solve(self.H.diff(var), var)
-            self.us.append(sol[0])
+    def codegen(self, path, lang='C'):
+
+        # ordered result variable names
+        fresvars = ['ds', 'dds', 'dl', 'ddl', 'dfs', 'ddfs', 'L', 'H', 'uo']
+
+        # ordered result variable values
+        fresvals = [self.__dict__[var] for var in fresvars]
+
+        # function expressions
+        fexps = list()
+        for resvar, resval in zip(fresvars, fresvals):
+            try: fexps.append(Eq(MatrixSymbol(resvar, *resval.shape), resval))
+            except: fexps.append(Eq(symbols(resvar), resval))
+
+        # ordered function arguments
+        fargs = [
+            [self.s,  self.u, self.alpha],
+            [self.s,  self.u, self.alpha],
+            [self.fs, self.u, self.alpha, self.beta],
+            [self.fs, self.u, self.alpha, self.beta],
+            [self.fs, self.u, self.alpha, self.beta],
+            [self.fs, self.u, self.alpha, self.beta],
+            [self.s,  self.u, self.alpha, self.beta],
+            [self.fs, self.u, self.alpha, self.beta],
+            [self.fs, self.alpha, self.beta]
+        ]
+
+        fargs = [[var for vec in args for var in vec] for args in fargs]
+        [args.append(fexp.lhs) for args, fexp in zip(fargs, fexps)]
+
+        # code generator
+        if lang == 'C':
+            gen = CCodeGen()
+        elif lang == 'F':
+            gen = FCodeGen()
+
+        # create routines
+        routines = [
+            gen.routine(name, func, sym, None)
+            for name, func, sym in zip(fresvars, fexps, fargs)
+        ]
+
+        # write routines to file
+        gen.write(routines, path, to_files=True, header=False, empty=True)
+
+class system_parse(system):
+
+    def __init__(self, jsconf):
+
+        s  = Matrix([parse_expr(var) for var in jsconf['state']])
+        u  = Matrix([parse_expr(var) for var in jsconf['control']])
+        ds = Matrix([parse_expr(var) for var in jsconf['dynamics']])
+        L  = parse_expr(jsconf['lagrangian'])
+        system.__init__(self, s, u, ds, L)
+
+
+
+
+
 
 
 if __name__ == "__main__":
 
     # state
-    x, y, theta = symbols('x y theta', real=True)
-    p = Matrix([x, y])
-    s = Matrix([p, [theta]])
-
-    # control
-    omega = symbols('omega', real=True)
-    u = Matrix([omega])
-
-    # a priori parameters
-    V = symbols('V', real=True, positive=True)
-
-    # a posteriori parameters
-    a = symbols('a', real=True, positive=True)
-
-    # state dynamics
-    dx = V*cos(theta)
-    dy = V*sin(theta)
-    dtheta = omega
-    ds = Matrix([dx, dy, dtheta])
-
-    # lagrangian
-    L = a*omega**2
-    L
-
-    System(s, u, ds, L)
+    sys = {
+        'state': ['x', 'y', 'theta'],
+        'control': ['omega'],
+        'dynamics': ['V*cos(theta)', 'V*sin(theta)', 'omega'],
+        'lagrangian': 'omega**2'
+    }
