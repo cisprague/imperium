@@ -7,7 +7,7 @@ from sympy.parsing.sympy_parser import parse_expr
 
 class system(object):
 
-    def __init__(self, state, control, dynamics, lagrangian):
+    def __init__(self, state, control, dynamics, lagrangian, equality, inequality):
 
         # state variables
         self.s  = state
@@ -17,6 +17,10 @@ class system(object):
         self.ds = dynamics
         # lagrangian cost functional
         self.L  = lagrangian
+        # equality constraints
+        self.eq = equality
+        # inequality constraints
+        self.iq = inequality
 
         # system parameters
         self.alpha = Matrix([
@@ -46,8 +50,51 @@ class system(object):
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
 
-        # optimal controls
-        self.uo = Matrix([solve(self.H.diff(var), var)[0] for var in self.u])
+        # hamiltonian gradient wrt controls
+        self.grad = Matrix([self.H.diff(var) for var in self.u])
+        # hamiltonian hessian wrt controls
+        self.hess = Matrix([[self.H.diff(x).diff(y) for x in self.u] for y in self.u])
+
+
+
+        #self.uo = Matrix([solve(self.H.diff(var), var)[0] for var in self.u])
+
+    def solve(self):
+
+        # equality constraint constants - positive for dual feasibility
+        self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
+
+        # equality constraint constants
+        self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
+
+        # stationarity equation
+        self.stationarity = self.grad \
+            - sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1)) \
+            - sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.eqcoef, self.eq)], zeros(len(self.u), 1))
+
+        # complementary slackness
+        self.compslack = Matrix([coef*con for coef, con in zip(self.iqcoef, self.iq)])
+
+        # equations to solve
+        self.opteqs = [eq for sl in
+            [
+                [eq for eq in self.stationarity],
+                [eq for eq in self.compslack]
+            ]
+            for eq in sl]
+
+        # variables to solve for
+        self.optvars = [var for sl in
+                [
+                    [var for var in self.u],
+                    [var for var in self.eqcoef],
+                    [var for var in self.iqcoef]
+                ]
+            for var in sl]
+
+        self.sol = solve(self.opteqs, self.optvars)
+
+
 
     def codegen(self, path, lang='C'):
 
@@ -102,9 +149,9 @@ class system_parse(system):
         u  = Matrix([parse_expr(var) for var in jsconf['control']])
         ds = Matrix([parse_expr(var) for var in jsconf['dynamics']])
         L  = parse_expr(jsconf['lagrangian'])
-        system.__init__(self, s, u, ds, L)
-
-
+        eq = Matrix([parse_expr(var) for var in jsconf['equality']])
+        iq = Matrix([parse_expr(var) for var in jsconf['inequality']])
+        system.__init__(self, s, u, ds, L, eq, iq)
 
 
 
@@ -112,10 +159,21 @@ class system_parse(system):
 
 if __name__ == "__main__":
 
-    # state
+    import os
+    fp = os.path.realpath(__file__)
+    fp = os.path.split(fp)[0] + "/car"
+
     sys = {
         'state': ['x', 'y', 'theta'],
-        'control': ['omega'],
-        'dynamics': ['V*cos(theta)', 'V*sin(theta)', 'omega'],
-        'lagrangian': 'omega**2'
+        'control': ['u'],
+        'dynamics': ['V*cos(theta)', 'V*sin(theta)', 'u*omega'],
+        'lagrangian': 'u**2',
+        'inequality': ['u - 1', '-u - 1'],
+        'equality': ['0']
     }
+
+    # instantiate system
+    sys = system_parse(sys)
+
+    # generate C code
+    sys.solve()
