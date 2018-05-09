@@ -7,7 +7,7 @@ from sympy.parsing.sympy_parser import parse_expr
 
 class system(object):
 
-    def __init__(self, state, control, dynamics, lagrangian, equality, inequality):
+    def __init__(self, state, control, dynamics, lagrangian, equality=None, inequality=None):
 
         # state variables
         self.s  = state
@@ -62,18 +62,23 @@ class system(object):
     def solve(self):
 
         # equality constraint constants - positive for dual feasibility
-        self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
+        if self.eq is not None:
+            self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
 
         # equality constraint constants
-        self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
+        if self.iq is not None:
+            self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
 
         # stationarity equation
-        self.stationarity = self.grad \
-            - sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1)) \
-            - sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.eqcoef, self.eq)], zeros(len(self.u), 1))
+        self.stationarity = self.grad
+        if self.eq is not None:
+            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1))
+        if self.iq is not None:
+            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.eqcoef, self.eq)], zeros(len(self.u), 1))
 
         # complementary slackness
-        self.compslack = Matrix([coef*con for coef, con in zip(self.iqcoef, self.iq)])
+        if self.iq is not None:
+            self.compslack = Matrix([coef*con for coef, con in zip(self.iqcoef, self.iq)])
 
         # equations to solve
         self.opteqs = [eq for sl in
@@ -82,6 +87,8 @@ class system(object):
                 [eq for eq in self.compslack]
             ]
             for eq in sl]
+
+        #print(self.compslack)
 
         # variables to solve for
         self.optvars = [var for sl in
