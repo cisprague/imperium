@@ -22,22 +22,24 @@ class system(object):
         # inequality constraints
         self.iq = inequality
 
-        # system parameters
+        # system parameters - constant
         self.alpha = Matrix([
             var for var in dynamics.free_symbols if all([
-                var not in vec for vec in [self.s, self.u]
+                var not in self.s.free_symbols | self.u.free_symbols
             ])
         ])
 
-        # homotopy parameters
+        # homotopy parameters - psuedoconstant
         self.beta = Matrix([
             var for var in lagrangian.free_symbols if all([
-                var not in vec for vec in [self.s, self.u, self.ds]
+                var not in self.s.free_symbols | self.u.free_symbols | self.ds.free_symbols
             ])
         ])
 
         # costate
         self.l  = Matrix([symbols('lambda_' + str(var)) for var in self.s])
+        # dynamic variables
+        self.gamma = Matrix([var for var in self.s.free_symbols | self.l.free_symbols | self.u.free_symbols])
         # hamiltonian
         self.H  = self.l.dot(self.ds) + self.L
         # costate dynamics
@@ -50,56 +52,61 @@ class system(object):
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
 
-        # hamiltonian gradient wrt controls
+        # hamiltonian gradient and Hessian wrt controls
         self.grad = Matrix([self.H.diff(var) for var in self.u])
-        # hamiltonian hessian wrt controls
         self.hess = Matrix([[self.H.diff(x).diff(y) for x in self.u] for y in self.u])
 
-
-
-        #self.uo = Matrix([solve(self.H.diff(var), var)[0] for var in self.u])
-
-    def solve(self):
-
-        # equality constraint constants - positive for dual feasibility
-        if self.eq is not None:
-            self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
-
-        # equality constraint constants
-        if self.iq is not None:
-            self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
+        # KKT equations and variables to solve
+        self.opteqs, self.optvars = list(), list()
 
         # stationarity equation
         self.stationarity = self.grad
+
+        # equality constraint constants
         if self.eq is not None:
-            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1))
-        if self.iq is not None:
+            self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
             self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.eqcoef, self.eq)], zeros(len(self.u), 1))
+            [self.optvars.append(var) for var in self.eqcoef]
 
-        # complementary slackness
+        # inequality constraints
         if self.iq is not None:
+            self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
+            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1))
             self.compslack = Matrix([coef*con for coef, con in zip(self.iqcoef, self.iq)])
+            [self.opteqs.append(eq) for eq in self.compslack]
+            [self.optvars.append(var) for var in self.iqcoef]
 
-        # equations to solve
-        self.opteqs = [eq for sl in
-            [
-                [eq for eq in self.stationarity],
-                [eq for eq in self.compslack]
-            ]
-            for eq in sl]
+        [self.opteqs.append(eq) for eq in self.stationarity]
+        [self.optvars.append(var) for var in self.u]
 
-        #print(self.compslack)
+    def solve(self):
 
-        # variables to solve for
-        self.optvars = [var for sl in
-                [
-                    [var for var in self.u],
-                    [var for var in self.eqcoef],
-                    [var for var in self.iqcoef]
-                ]
-            for var in sl]
+        # generic solutions
+        sols = solve(self.opteqs, self.optvars, dict=True, simplify=True)
 
-        self.sol = solve(self.opteqs, self.optvars)
+        # remove dynamic coefficients
+        self.sol = list()
+        for sol in sols:
+            good = True
+
+            if self.eq is not None:
+                for coef in self.eqcoef:
+                    if any([var in sol[coef].free_symbols for var in self.gamma]):
+                        good = False
+                        break
+
+            if self.iq is not None:
+                for coef in self.iqcoef:
+                    if any([var in sol[coef].free_symbols for var in self.gamma]):
+                        good = False
+                        break
+
+            if good: self.sol.append(sol)
+
+        return self.sol
+
+
+
 
 
 
@@ -156,8 +163,17 @@ class system_parse(system):
         u  = Matrix([parse_expr(var) for var in jsconf['control']])
         ds = Matrix([parse_expr(var) for var in jsconf['dynamics']])
         L  = parse_expr(jsconf['lagrangian'])
-        eq = Matrix([parse_expr(var) for var in jsconf['equality']])
-        iq = Matrix([parse_expr(var) for var in jsconf['inequality']])
+
+        if 'equality' in jsconf.keys():
+            eq = Matrix([parse_expr(var) for var in jsconf['equality']])
+        else:
+            eq = None
+
+        if 'inequality' in jsconf.keys():
+            iq = Matrix([parse_expr(var) for var in jsconf['inequality']])
+        else:
+            eq = None
+
         system.__init__(self, s, u, ds, L, eq, iq)
 
 
