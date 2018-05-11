@@ -37,7 +37,7 @@ class system(object):
         ])
 
         # costate
-        self.l  = Matrix([symbols('lambda_' + str(var)) for var in self.s])
+        self.l  = Matrix([symbols('lambda_' + str(var), real=True) for var in self.s])
         # dynamic variables
         self.gamma = Matrix([var for var in self.s.free_symbols | self.l.free_symbols | self.u.free_symbols])
         # hamiltonian
@@ -52,58 +52,42 @@ class system(object):
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
 
-        # hamiltonian gradient and Hessian wrt controls
-        self.grad = Matrix([self.H.diff(var) for var in self.u])
-        self.hess = Matrix([[self.H.diff(x).diff(y) for x in self.u] for y in self.u])
 
-        # KKT equations and variables to solve
-        self.opteqs, self.optvars = list(), list()
+        # define KKT Lagrangian
+        self.KKTL = self.H
 
-        # stationarity equation
-        self.stationarity = self.grad
-
-        # equality constraint constants
+        # define KKT constant coefficients and add to KKT Lagrangian
         if self.eq is not None:
-            self.eqcoef = Matrix([symbols('zeta' + str(i), positive=True, real=True) for i in range(len(self.eq))])
-            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.eqcoef, self.eq)], zeros(len(self.u), 1))
-            [self.optvars.append(var) for var in self.eqcoef]
-
-        # inequality constraints
+            self.eqcoef = Matrix([symbols('eta_' + str(i), real=True) for i in range(len(self.eq))])
+            self.KKTL += self.eqcoef.dot(self.eq)
         if self.iq is not None:
-            self.iqcoef = Matrix([symbols('eta' + str(i), real=True) for i in range(len(self.iq))])
-            self.stationarity -= sum([coef*Matrix([con.diff(var) for var in self.u]) for coef, con in zip(self.iqcoef, self.iq)], zeros(len(self.u), 1))
-            self.compslack = Matrix([coef*con for coef, con in zip(self.iqcoef, self.iq)])
-            [self.opteqs.append(eq) for eq in self.compslack]
-            [self.optvars.append(var) for var in self.iqcoef]
+            # 2) iqcoef >= 0
+            self.iqcoef = Matrix([symbols('zeta_' + str(j), real=True, nonnegative=True) for j in range(len(self.iq))])
+            self.KKTL += self.iqcoef.dot(self.iq)
 
-        [self.opteqs.append(eq) for eq in self.stationarity]
-        [self.optvars.append(var) for var in self.u]
+        # 1) gradient of KKT Lagrangian wrt controls = 0
+        self.KKTeqs = [self.KKTL.diff(var) for var in self.u]
+
+        # 3)
+        if self.iq is not None:
+            [self.KKTeqs.append(coef * cons) for coef, cons in zip(self.iqcoef, self.iq)]
+
+        # 5)
+        if self.eq is not None:
+            [self.KKTeqs.append(eq) for eq in self.eq]
+
+        # optimisation variables
+        self.KKTvars = [var for var in self.u]
+        if self.eq is not None:
+            [self.KKTvars.append(var) for var in self.eqcoef]
+        if self.iq is not None:
+            [self.KKTvars.append(var) for var in self.iqcoef]
 
     def solve(self):
 
         # generic solutions
-        sols = solve(self.opteqs, self.optvars, dict=True, simplify=True)
-
-        # remove dynamic coefficients
-        self.sol = list()
-        for sol in sols:
-            good = True
-
-            if self.eq is not None:
-                for coef in self.eqcoef:
-                    if any([var in sol[coef].free_symbols for var in self.gamma]):
-                        good = False
-                        break
-
-            if self.iq is not None:
-                for coef in self.iqcoef:
-                    if any([var in sol[coef].free_symbols for var in self.gamma]):
-                        good = False
-                        break
-
-            if good: self.sol.append(sol)
-
-        return self.sol
+        self.sols = solve(self.KKTeqs, self.KKTvars, dict=True, simplify=True)
+        return self.sols
 
 
 
@@ -172,7 +156,7 @@ class system_parse(system):
         if 'inequality' in jsconf.keys():
             iq = Matrix([parse_expr(var) for var in jsconf['inequality']])
         else:
-            eq = None
+            iq = None
 
         system.__init__(self, s, u, ds, L, eq, iq)
 
