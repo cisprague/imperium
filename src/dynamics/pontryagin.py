@@ -4,6 +4,7 @@
 from sympy import *
 from sympy.utilities.codegen import *
 from sympy.parsing.sympy_parser import parse_expr
+import os, sys
 
 class system(object):
 
@@ -52,6 +53,7 @@ class system(object):
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
 
+    def KKT(self, subst=None):
 
         # define KKT Lagrangian
         self.KKTL = self.H
@@ -83,20 +85,15 @@ class system(object):
         if self.iq is not None:
             [self.KKTvars.append(var) for var in self.iqcoef]
 
-    def solve(self):
-
-        # generic solutions
-        self.sols = solve(self.KKTeqs, self.KKTvars, dict=True, simplify=True)
-        return self.sols
+        # add substitutions
+        if subst is not None:
+            self.KKTeqs = [eq.subs(subst) for eq in self.KKTeqs]
 
 
-
-
-
-
-    def codegen(self, path, lang='C'):
+    def codegen(self, path, lang='F', compile=True):
 
         # ordered result variable names
+        fresnames = ['eom_state', 'jacobian_state', 'eom_costate', 'jacobian_costate', 'eom_fullstate', 'jacobian_fullstate', 'lagrangian', 'hamiltonian', 'control']
         fresvars = ['ds', 'dds', 'dl', 'ddl', 'dfs', 'ddfs', 'L', 'H', 'uo']
 
         # ordered result variable values
@@ -133,11 +130,20 @@ class system(object):
         # create routines
         routines = [
             gen.routine(name, func, sym, None)
-            for name, func, sym in zip(fresvars, fexps, fargs)
+            for name, func, sym in zip(fresnames, fexps, fargs)
         ]
 
         # write routines to file
         gen.write(routines, path, to_files=True, header=False, empty=True)
+
+        # compile
+        if compile:
+            # extension name
+            ename = os.path.basename(path)
+            # directory
+            edir = os.path.dirname(path)
+            # compile source and create python extension
+            os.system("cd " + edir + " && f2py -c -m " + ename + " " + ename + ".f90 " + ename + ".h")
 
 class system_parse(system):
 
