@@ -6,7 +6,7 @@ from sympy.utilities.codegen import *
 from sympy.parsing.sympy_parser import parse_expr
 import os, sys
 
-class system(object):
+class System(object):
 
     def __init__(self, state, control, dynamics, lagrangian, equality=None, inequality=None):
 
@@ -93,7 +93,7 @@ class system(object):
     def codegen(self, path, lang='F', compile=True):
 
         # ordered result variable names
-        fresnames = ['eom_state', 'jacobian_state', 'eom_costate', 'jacobian_costate', 'eom_fullstate', 'jacobian_fullstate', 'lagrangian', 'hamiltonian', 'control']
+        fresnames = ['eom_state', 'jacobian_eom_state', 'eom_costate', 'jacobian_eom_costate', 'eom_fullstate', 'jacobian_eom_fullstate', 'lagrangian', 'hamiltonian', 'control']
         fresvars = ['ds', 'dds', 'dl', 'ddl', 'dfs', 'ddfs', 'L', 'H', 'uo']
 
         # ordered result variable values
@@ -141,11 +141,11 @@ class system(object):
             # extension name
             ename = os.path.basename(path)
             # directory
-            edir = os.path.dirname(path)
+            edir = os.path.dirname(os.path.abspath(path))
             # compile source and create python extension
             os.system("cd " + edir + " && f2py -c -m " + ename + " " + ename + ".f90 " + ename + ".h")
 
-class system_parse(system):
+class system_parse(System):
 
     def __init__(self, jsconf):
 
