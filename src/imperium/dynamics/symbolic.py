@@ -8,7 +8,7 @@ import os, sys
 
 class System(object):
 
-    def __init__(self, state, control, dynamics, lagrangian, equality=None, inequality=None):
+    def __init__(self, state, control, dynamics, lagrangian, ndtrans, equality=None, inequality=None):
 
         # state variables
         self.s  = state
@@ -22,6 +22,8 @@ class System(object):
         self.eq = equality
         # inequality constraints
         self.iq = inequality
+        # nondimensionalisation units
+        self.ndtrans = ndtrans
 
         # system parameters - constant
         self.alpha = Matrix([
@@ -34,6 +36,13 @@ class System(object):
         self.beta = Matrix([
             var for var in lagrangian.free_symbols if all([
                 var not in self.s.free_symbols | self.u.free_symbols | self.ds.free_symbols
+            ])
+        ])
+
+        # nondimensionalisation units
+        self.ndunits = Matrix([
+            var for var in self.ndtrans.free_symbols if all([
+                var not in self.s.free_symbols | self.u.free_symbols | self.ds.free_symbols | self.alpha.free_symbols | self.beta.free_symbols
             ])
         ])
 
@@ -52,6 +61,14 @@ class System(object):
         self.fs   = Matrix([self.s, self.l])
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
+
+        # vars to be transformed
+        self.gamma = Matrix([*self.s, *self.u, *self.alpha, *self.beta])
+        # nondimensionalisation
+        self.ndim = Matrix([var/unit for var, unit in zip(self.gamma, self.ndtrans)])
+        # dimensionalisation
+        self.dim = Matrix([var*unit for var, unit in zip(self.gamma, self.ndtrans)])
+
 
     def KKT(self, subst=None):
 
@@ -89,12 +106,37 @@ class System(object):
         if subst is not None:
             self.KKTeqs = [eq.subs(subst) for eq in self.KKTeqs]
 
-
     def codegen(self, path, lang='F', compile=True):
 
+        # ordered result function names
+        fresnames = [
+            'eom_state',
+            'jacobian_eom_state',
+            'eom_costate',
+            'jacobian_eom_costate',
+            'eom_fullstate',
+            'jacobian_eom_fullstate',
+            'lagrangian',
+            'hamiltonian',
+            'control',
+            'nondimensionalise',
+            'dimensionalise'
+        ]
+
         # ordered result variable names
-        fresnames = ['eom_state', 'jacobian_eom_state', 'eom_costate', 'jacobian_eom_costate', 'eom_fullstate', 'jacobian_eom_fullstate', 'lagrangian', 'hamiltonian', 'control']
-        fresvars = ['ds', 'dds', 'dl', 'ddl', 'dfs', 'ddfs', 'L', 'H', 'uo']
+        fresvars = [
+            'ds',
+            'dds',
+            'dl',
+            'ddl',
+            'dfs',
+            'ddfs',
+            'L',
+            'H',
+            'uo',
+            'ndim',
+            'dim'
+        ]
 
         # ordered result variable values
         fresvals = [self.__dict__[var] for var in fresvars]
@@ -115,7 +157,9 @@ class System(object):
             [self.fs, self.u, self.alpha, self.beta],
             [self.s,  self.u, self.alpha, self.beta],
             [self.fs, self.u, self.alpha, self.beta],
-            [self.fs, self.alpha, self.beta]
+            [self.fs, self.alpha, self.beta],
+            [self.s, self.u, self.alpha, self.beta, self.ndunits],
+            [self.s, self.u, self.alpha, self.beta, self.ndunits]
         ]
 
         fargs = [[var for vec in args for var in vec] for args in fargs]
