@@ -297,64 +297,67 @@ uo(3, 1) = -lambda_v_y/sqrt(lambda_v_x**2 + lambda_v_y**2)
 
 end subroutine
 
-subroutine nondimensionalise(x, y, v_x, v_y, u_t, u_x, u_y, T, m, &
-      alpha, m_b, l_b, t_b, ndim)
+subroutine nondimensionalise_state(x, y, v_x, v_y, t_b, l_b, m_b, &
+      ndims)
 implicit none
 REAL*8, intent(in) :: x
 REAL*8, intent(in) :: y
 REAL*8, intent(in) :: v_x
 REAL*8, intent(in) :: v_y
-REAL*8, intent(in) :: u_t
-REAL*8, intent(in) :: u_x
-REAL*8, intent(in) :: u_y
-REAL*8, intent(in) :: T
-REAL*8, intent(in) :: m
-REAL*8, intent(in) :: alpha
-REAL*8, intent(in) :: m_b
-REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: t_b
-REAL*8, intent(out), dimension(1:10, 1:1) :: ndim
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:4, 1:1) :: ndims
 
-ndim(1, 1) = x/l_b
-ndim(2, 1) = y/l_b
-ndim(3, 1) = t_b*v_x/l_b
-ndim(4, 1) = t_b*v_y/l_b
-ndim(5, 1) = u_t
-ndim(6, 1) = u_x
-ndim(7, 1) = u_y
-ndim(8, 1) = T*t_b/(l_b*m_b)
-ndim(9, 1) = m/m_b
-ndim(10, 1) = alpha
+ndims(1, 1) = x/l_b
+ndims(2, 1) = y/l_b
+ndims(3, 1) = t_b*v_x/l_b
+ndims(4, 1) = t_b*v_y/l_b
 
 end subroutine
 
-subroutine dimensionalise(x, y, v_x, v_y, u_t, u_x, u_y, T, m, alpha, &
-      m_b, l_b, t_b, dim)
+subroutine dimensionalise_state(x, y, v_x, v_y, t_b, l_b, m_b, dims)
 implicit none
 REAL*8, intent(in) :: x
 REAL*8, intent(in) :: y
 REAL*8, intent(in) :: v_x
 REAL*8, intent(in) :: v_y
-REAL*8, intent(in) :: u_t
-REAL*8, intent(in) :: u_x
-REAL*8, intent(in) :: u_y
+REAL*8, intent(in) :: t_b
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:4, 1:1) :: dims
+
+dims(1, 1) = l_b*x
+dims(2, 1) = l_b*y
+dims(3, 1) = l_b*v_x/t_b
+dims(4, 1) = l_b*v_y/t_b
+
+end subroutine
+
+subroutine nondimensionalise_parameters(T, m, t_b, l_b, m_b, ndimp)
+implicit none
 REAL*8, intent(in) :: T
 REAL*8, intent(in) :: m
-REAL*8, intent(in) :: alpha
-REAL*8, intent(in) :: m_b
-REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: t_b
-REAL*8, intent(out), dimension(1:10, 1:1) :: dim
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:2, 1:1) :: ndimp
 
-dim(1, 1) = l_b*x
-dim(2, 1) = l_b*y
-dim(3, 1) = l_b*v_x/t_b
-dim(4, 1) = l_b*v_y/t_b
-dim(5, 1) = u_t
-dim(6, 1) = u_x
-dim(7, 1) = u_y
-dim(8, 1) = T*l_b*m_b/t_b
-dim(9, 1) = m*m_b
-dim(10, 1) = alpha
+ndimp(1, 1) = T*t_b/(l_b*m_b)
+ndimp(2, 1) = m/m_b
+
+end subroutine
+
+subroutine dimensionalise_parameters(T, m, t_b, l_b, m_b, dimp)
+implicit none
+REAL*8, intent(in) :: T
+REAL*8, intent(in) :: m
+REAL*8, intent(in) :: t_b
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:2, 1:1) :: dimp
+
+dimp(1, 1) = T*l_b*m_b/t_b
+dimp(2, 1) = m*m_b
 
 end subroutine

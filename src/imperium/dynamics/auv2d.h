@@ -169,43 +169,52 @@ REAL*8, intent(out), dimension(1:3, 1:1) :: uo
 end subroutine
 end interface
 interface
-subroutine nondimensionalise(x, y, v_x, v_y, u_t, u_x, u_y, T, m, &
-alpha, m_b, l_b, t_b, ndim)
+subroutine nondimensionalise_state(x, y, v_x, v_y, t_b, l_b, m_b, &
+ndims)
 implicit none
 REAL*8, intent(in) :: x
 REAL*8, intent(in) :: y
 REAL*8, intent(in) :: v_x
 REAL*8, intent(in) :: v_y
-REAL*8, intent(in) :: u_t
-REAL*8, intent(in) :: u_x
-REAL*8, intent(in) :: u_y
-REAL*8, intent(in) :: T
-REAL*8, intent(in) :: m
-REAL*8, intent(in) :: alpha
-REAL*8, intent(in) :: m_b
-REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: t_b
-REAL*8, intent(out), dimension(1:10, 1:1) :: ndim
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:4, 1:1) :: ndims
 end subroutine
 end interface
 interface
-subroutine dimensionalise(x, y, v_x, v_y, u_t, u_x, u_y, T, m, alpha, &
-m_b, l_b, t_b, dim)
+subroutine dimensionalise_state(x, y, v_x, v_y, t_b, l_b, m_b, dims)
 implicit none
 REAL*8, intent(in) :: x
 REAL*8, intent(in) :: y
 REAL*8, intent(in) :: v_x
 REAL*8, intent(in) :: v_y
-REAL*8, intent(in) :: u_t
-REAL*8, intent(in) :: u_x
-REAL*8, intent(in) :: u_y
+REAL*8, intent(in) :: t_b
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:4, 1:1) :: dims
+end subroutine
+end interface
+interface
+subroutine nondimensionalise_parameters(T, m, t_b, l_b, m_b, ndimp)
+implicit none
 REAL*8, intent(in) :: T
 REAL*8, intent(in) :: m
-REAL*8, intent(in) :: alpha
-REAL*8, intent(in) :: m_b
-REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: t_b
-REAL*8, intent(out), dimension(1:10, 1:1) :: dim
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:2, 1:1) :: ndimp
+end subroutine
+end interface
+interface
+subroutine dimensionalise_parameters(T, m, t_b, l_b, m_b, dimp)
+implicit none
+REAL*8, intent(in) :: T
+REAL*8, intent(in) :: m
+REAL*8, intent(in) :: t_b
+REAL*8, intent(in) :: l_b
+REAL*8, intent(in) :: m_b
+REAL*8, intent(out), dimension(1:2, 1:1) :: dimp
 end subroutine
 end interface
 

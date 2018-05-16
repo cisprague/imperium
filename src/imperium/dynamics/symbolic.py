@@ -8,7 +8,20 @@ import os, sys
 
 class System(object):
 
-    def __init__(self, state, control, dynamics, lagrangian, ndtrans, equality=None, inequality=None):
+    def __init__(
+            self,
+            state,
+            control,
+            dynamics,
+            lagrangian,
+            sysparams,
+            optparams,
+            ndunits,
+            ndtrans,
+            ndtranp,
+            equality=None,
+            inequality=None
+        ):
 
         # state variables
         self.s  = state
@@ -17,34 +30,21 @@ class System(object):
         # state dynamics
         self.ds = dynamics
         # lagrangian cost functional
-        self.L  = lagrangian
+        self.L = lagrangian
         # equality constraints
         self.eq = equality
         # inequality constraints
         self.iq = inequality
-        # nondimensionalisation units
+        # nondimensionalisation units for state
         self.ndtrans = ndtrans
-
+        # nondimensionalisation units for parameters
+        self.ndtranp = ndtranp
         # system parameters - constant
-        self.alpha = Matrix([
-            var for var in dynamics.free_symbols if all([
-                var not in self.s.free_symbols | self.u.free_symbols
-            ])
-        ])
-
+        self.alpha = sysparams
         # homotopy parameters - psuedoconstant
-        self.beta = Matrix([
-            var for var in lagrangian.free_symbols if all([
-                var not in self.s.free_symbols | self.u.free_symbols | self.ds.free_symbols
-            ])
-        ])
-
+        self.beta = optparams
         # nondimensionalisation units
-        self.ndunits = Matrix([
-            var for var in self.ndtrans.free_symbols if all([
-                var not in self.s.free_symbols | self.u.free_symbols | self.ds.free_symbols | self.alpha.free_symbols | self.beta.free_symbols
-            ])
-        ])
+        self.ndunits = ndunits
 
         # costate
         self.l  = Matrix([symbols('lambda_' + str(var), real=True) for var in self.s])
@@ -62,12 +62,13 @@ class System(object):
         self.dfs  = Matrix([self.ds, self.dl])
         self.ddfs = self.dfs.jacobian(self.fs)
 
-        # vars to be transformed
-        self.gamma = Matrix([*self.s, *self.u, *self.alpha, *self.beta])
         # nondimensionalisation
-        self.ndim = Matrix([var/unit for var, unit in zip(self.gamma, self.ndtrans)])
+        self.ndims = Matrix([var/unit for var, unit in zip(self.s, self.ndtrans)])
+        self.ndimp = Matrix([var/unit for var, unit in zip(self.alpha, self.ndtranp)])
+
         # dimensionalisation
-        self.dim = Matrix([var*unit for var, unit in zip(self.gamma, self.ndtrans)])
+        self.dims = Matrix([var*unit for var, unit in zip(self.s, self.ndtrans)])
+        self.dimp = Matrix([var*unit for var, unit in zip(self.alpha, self.ndtranp)])
 
 
     def KKT(self, subst=None):
@@ -119,8 +120,10 @@ class System(object):
             'lagrangian',
             'hamiltonian',
             'control',
-            'nondimensionalise',
-            'dimensionalise'
+            'nondimensionalise_state',
+            'dimensionalise_state',
+            'nondimensionalise_parameters',
+            'dimensionalise_parameters'
         ]
 
         # ordered result variable names
@@ -134,8 +137,10 @@ class System(object):
             'L',
             'H',
             'uo',
-            'ndim',
-            'dim'
+            'ndims',
+            'dims',
+            'ndimp',
+            'dimp'
         ]
 
         # ordered result variable values
@@ -158,8 +163,10 @@ class System(object):
             [self.s,  self.u, self.alpha, self.beta],
             [self.fs, self.u, self.alpha, self.beta],
             [self.fs, self.alpha, self.beta],
-            [self.s, self.u, self.alpha, self.beta, self.ndunits],
-            [self.s, self.u, self.alpha, self.beta, self.ndunits]
+            [self.s, self.ndunits],
+            [self.s, self.ndunits],
+            [self.alpha, self.ndunits],
+            [self.alpha, self.ndunits]
         ]
 
         fargs = [[var for vec in args for var in vec] for args in fargs]
