@@ -343,7 +343,7 @@ REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: m_b
 REAL*8, intent(out), dimension(1:2, 1:1) :: ndimp
 
-ndimp(1, 1) = T*t_b/(l_b*m_b)
+ndimp(1, 1) = T*t_b**2/(l_b*m_b)
 ndimp(2, 1) = m/m_b
 
 end subroutine
@@ -357,7 +357,7 @@ REAL*8, intent(in) :: l_b
 REAL*8, intent(in) :: m_b
 REAL*8, intent(out), dimension(1:2, 1:1) :: dimp
 
-dimp(1, 1) = T*l_b*m_b/t_b
+dimp(1, 1) = T*l_b*m_b/t_b**2
 dimp(2, 1) = m*m_b
 
 end subroutine

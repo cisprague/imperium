@@ -42,33 +42,33 @@ class Segment(object):
         # states
         self.states = np.vstack((self.states, s))
 
-    def nondimensionalise(self, t0, tf, s0, sf, alpha):
+    def nondimensionalise(self, t0=None, tf=None, s0=None, sf=None, alpha=None):
 
         # nondimensionalise times
-        t0 /= self.ndunits[0]
-        tf /= self.ndunits[0]
+        if t0 is not None: t0 /= self.ndunits[0]
+        if tf is not None: tf /= self.ndunits[0]
 
         # nondimensionalise states
-        s0 = self.dynamics.nondimensionalise_state(*s0, *self.ndunits).flatten()
-        sf = self.dynamics.nondimensionalise_state(*sf, *self.ndunits).flatten()
+        if s0 is not None: s0 = self.dynamics.nondimensionalise_state(*s0, *self.ndunits).flatten()
+        if sf is not None: sf = self.dynamics.nondimensionalise_state(*sf, *self.ndunits).flatten()
 
         # nondimensionalise parameters
-        alpha = self.dynamics.nondimensionalise_parameters(*alpha, *self.ndunits).flatten()
+        if alpha is not None: alpha = self.dynamics.nondimensionalise_parameters(*alpha, *self.ndunits).flatten()
 
         return t0, tf, s0, sf, alpha
 
-    def dimensionalise(self, t0, tf, s0, sf, alpha):
+    def dimensionalise(self, t0=None, tf=None, s0=None, sf=None, alpha=None):
 
         # dimensionalise times
-        t0 *= self.ndunits[0]
-        tf *= self.ndunits[0]
+        if t0 is not None: t0 *= self.ndunits[0]
+        if tf is not None: tf *= self.ndunits[0]
 
         # dimensionalise states
-        s0 = self.dynamics.dimensionalise_state(*s0, *self.ndunits).flatten()
-        sf = self.dynamics.dimensionalise_state(*sf, *self.ndunits).flatten()
+        if s0 is not None: s0 = self.dynamics.dimensionalise_state(*s0, *self.ndunits).flatten()
+        if sf is not None: sf = self.dynamics.dimensionalise_state(*sf, *self.ndunits).flatten()
 
         # dimensionalise parameters
-        alpha = self.dynamics.dimensionalise_parameters(*alpha, *self.ndunits).flatten()
+        if alpha is not None: alpha = self.dynamics.dimensionalise_parameters(*alpha, *self.ndunits).flatten()
 
         return t0, tf, s0, sf, alpha
 
@@ -76,10 +76,13 @@ class Segment(object):
 
 class Indirect(Segment):
 
-    def __init__(self, dynamics, alpha, ndunits, lbound, ubound):
+    def __init__(self, dynamics, alpha, ndunits, lbound, ubound, freetime):
 
         # initialise base
         Segment.__init__(self, dynamics, alpha, ndunits, lbound, ubound)
+
+        # free time transversality condition
+        self.freetime = freetime
 
         # numerical integerator
         self.integrator = ode(self.eom, self.eom_jac)
@@ -97,8 +100,16 @@ class Indirect(Segment):
 
     def record(self, t, fs):
 
+        # extract real state
+        s = fs[:int(len(fs)/2)]
+        # extract costate
+        l = fs[int(len(fs)/2):]
+
+        # redimensionalise time and state
+        t, _, s, _, _ = self.dimensionalise(s0=s, t0=t)
+
         # record state and time
-        Segment.record(self, t, fs)
+        Segment.record(self, t, np.hstack((s, l)))
 
         # record control
         self.controls = np.vstack((self.controls, self.control(fs)))
@@ -136,10 +147,45 @@ class Indirect(Segment):
         self.integrator.set_solout(self.record)
 
         # nondimensionalise problem
-        t0, tf, s0, sf, alpha = self.nondimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
+        self.t0, self.tf, self.s0, self.sf, self.alpha = self.nondimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
 
         # set initial state
-        self.integrator.set_initial_value(np.hstack((s0, self.l0)), t0)
+        self.integrator.set_initial_value(np.hstack((self.s0, self.l0)), self.t0)
 
         # integrate
-        self.integrator.integrate(tf)
+        self.integrator.integrate(self.tf)
+
+        # redimensionalise
+        self.t0, self.tf, self.s0, self.sf, self.alpha = self.dimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
+
+    def mismatch(self, intmeth='dop853', atol=1e-8, rtol=1e-8, norm=True):
+
+        # propagate the trajectory
+        self.propagate(intmeth=intmeth, atol=atol, rtol=rtol)
+
+        # extract final states, costates, and controls
+        sf = self.states[-1, :len(self.s0)]
+        lf = self.states[-1, len(self.s0):]
+        uf = self.controls[-1]
+
+        # nondimensionalise states
+        _, _, sf, _, _ = self.nondimensionalise(s0=sf)
+        _, _, sft, _, _ = self.nondimensionalise(s0=self.sf)
+
+        # compute mismatch
+        ceq = sf - sft
+
+        # if free time problem
+        if self.freetime:
+
+            # compute final hamiltonian
+            H = self.dynamics.hamiltonian(*sf, *lf, *uf, *self.alpha, *self.beta)
+
+            # add to equality constraint
+            ceq = np.hstack((ceq, [H]))
+
+        # normalise constraint vector
+        if norm:
+            ceq = ceq/np.linalg.norm(ceq)
+
+        return ceq
