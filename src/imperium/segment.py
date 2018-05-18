@@ -3,15 +3,16 @@
 
 from scipy.integrate import ode
 import numpy as np
+import imperium.dynamics as dynamics
 
 class Segment(object):
 
     # NOTE: only dimensional parameters are state and system parameters
 
-    def __init__(self, dynamics, alpha, ndunits, lbound=None, ubound=None):
+    def __init__(self, dn, alpha, ndunits, lbound=None, ubound=None):
 
         # dynamical system
-        self.dynamics = dynamics
+        self.dn = dn
 
         # system parameters
         self.alpha = np.array(alpha, float)
@@ -49,11 +50,11 @@ class Segment(object):
         if tf is not None: tf /= self.ndunits[0]
 
         # nondimensionalise states
-        if s0 is not None: s0 = self.dynamics.nondimensionalise_state(*s0, *self.ndunits).flatten()
-        if sf is not None: sf = self.dynamics.nondimensionalise_state(*sf, *self.ndunits).flatten()
+        if s0 is not None: s0 = dynamics.__dict__[self.dn].nondimensionalise_state(*s0, *self.ndunits).flatten()
+        if sf is not None: sf = dynamics.__dict__[self.dn].nondimensionalise_state(*sf, *self.ndunits).flatten()
 
         # nondimensionalise parameters
-        if alpha is not None: alpha = self.dynamics.nondimensionalise_parameters(*alpha, *self.ndunits).flatten()
+        if alpha is not None: alpha = dynamics.__dict__[self.dn].nondimensionalise_parameters(*alpha, *self.ndunits).flatten()
 
         return t0, tf, s0, sf, alpha
 
@@ -64,11 +65,11 @@ class Segment(object):
         if tf is not None: tf *= self.ndunits[0]
 
         # dimensionalise states
-        if s0 is not None: s0 = self.dynamics.dimensionalise_state(*s0, *self.ndunits).flatten()
-        if sf is not None: sf = self.dynamics.dimensionalise_state(*sf, *self.ndunits).flatten()
+        if s0 is not None: s0 = dynamics.__dict__[self.dn].dimensionalise_state(*s0, *self.ndunits).flatten()
+        if sf is not None: sf = dynamics.__dict__[self.dn].dimensionalise_state(*sf, *self.ndunits).flatten()
 
         # dimensionalise parameters
-        if alpha is not None: alpha = self.dynamics.dimensionalise_parameters(*alpha, *self.ndunits).flatten()
+        if alpha is not None: alpha = dynamics.__dict__[self.dn].dimensionalise_parameters(*alpha, *self.ndunits).flatten()
 
         return t0, tf, s0, sf, alpha
 
@@ -87,12 +88,15 @@ class Indirect(Segment):
         # numerical integerator
         self.integrator = ode(self.eom, self.eom_jac)
 
+    def set_costates(self, l):
+        self.l0 = np.array(l)
+
     def set(self, t0, s0, tf, sf, l0, beta, bound):
 
         # set states and times
         Segment.set(self, t0, s0, tf, sf)
         # set costates
-        self.l0 = l0
+        self.set_costates(l0)
         # set homotopy parameters
         self.beta = beta
         # set control bounds
@@ -117,7 +121,7 @@ class Indirect(Segment):
     def control(self, fs):
 
         # unbounded control
-        u = self.dynamics.control(*fs, *self.alpha, *self.beta).flatten()
+        u = dynamics.__dict__[self.dn].control(*fs, *self.alpha, *self.beta).flatten()
         # bounded control
         if self.bound:
             u = np.array([min(max(var, lb), ub) for var, lb, ub in zip(u, self.ulb, self.uub)])
@@ -126,12 +130,12 @@ class Indirect(Segment):
     def eom(self, t, fs):
 
         # state transition
-        return self.dynamics.eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta).flatten()
+        return dynamics.__dict__[self.dn].eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta).flatten()
 
     def eom_jac(t, fs):
 
         # state transition jacobian
-        return self.dynamics.jacobian_eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta)
+        return dynamics.__dict__[self.dn].jacobian_eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta)
 
     def propagate(self, intmeth='dop853', atol=1e-8, rtol=1e-8):
 
@@ -179,7 +183,7 @@ class Indirect(Segment):
         if self.freetime:
 
             # compute final hamiltonian
-            H = self.dynamics.hamiltonian(*sf, *lf, *uf, *self.alpha, *self.beta)
+            H = dynamics.__dict__[self.dn].hamiltonian(*sf, *lf, *uf, *self.alpha, *self.beta)
 
             # add to equality constraint
             ceq = np.hstack((ceq, [H]))
@@ -189,3 +193,29 @@ class Indirect(Segment):
             ceq = ceq/np.linalg.norm(ceq)
 
         return ceq
+
+    def get_nobj(self):
+        return 1
+
+    def get_nec(self):
+        neq = len(self.s0)
+        if self.freetime: neq += 1
+        return neq
+
+    def get_bounds(self):
+        lb = [self.ndunits[0]/1000] + [-100]*len(self.s0)
+        ub = [self.ndunits[0]] + [100]*len(self.s0)
+        return (lb, ub)
+
+    def fitness(self, z):
+
+        # duration
+        self.set_times(0, z[0])
+
+        # initial costates
+        self.set_costates(z[1:])
+
+        # compute mismatch
+        ceq = self.mismatch(norm=False)
+
+        return np.hstack(([1], ceq))
