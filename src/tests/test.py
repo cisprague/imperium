@@ -26,7 +26,7 @@ def main():
     prob = pg.problem(seg)
 
     # instantiate SNOPT algorithm
-    algo = pg7.snopt7(True, "/usr/lib/libsnopt7_c.so")
+    algo = pg7.snopt7(True, "/home/cisprague/Downloads/a.out")
     algo.set_integer_option("Major iterations limit", 4000)
     algo.set_integer_option("Iterations limit", 40000)
     algo.set_numeric_option("Major optimality tolerance", 1e-2)
