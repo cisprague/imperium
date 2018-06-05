@@ -2,7 +2,7 @@
 # christopher.iliffe.sprague@gmail.com
 
 from scipy.integrate import ode
-import numpy as np
+import numpy as np, pygmo as pg
 import imperium.dynamics as dynamics
 
 class Segment(object):
@@ -162,7 +162,7 @@ class Indirect(Segment):
         # redimensionalise
         self.t0, self.tf, self.s0, self.sf, self.alpha = self.dimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
 
-    def mismatch(self, intmeth='dop853', atol=1e-8, rtol=1e-8, norm=True):
+    def mismatch(self, intmeth='dop853', atol=1e-12, rtol=1e-12, norm=True):
 
         # propagate the trajectory
         self.propagate(intmeth=intmeth, atol=atol, rtol=rtol)
@@ -219,3 +219,6 @@ class Indirect(Segment):
         ceq = self.mismatch(norm=False)
 
         return np.hstack(([1], ceq))
+
+    def gradient(self, z):
+        return pg.estimate_gradient(self.fitness, z)

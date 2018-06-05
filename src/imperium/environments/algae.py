@@ -101,16 +101,21 @@ class Algae_Farm(object):
     def simple_coverage(self):
 
         # first wall
-        x0, y0, x1, y1 = self.wall(0)
+        x1, y1, x0, y0 = self.wall(self.N - 1)
 
         # coverage points
         pts = np.array([[x0, y0 - self.dw/2], [x1, y1 - self.dw/2]])
+        n = 0
 
         # coverage points for all walls
-        for i in range(self.N):
+        for i in reversed(range(self.N - 2)):
+            n += 1
 
             # extract coordinates
-            x0, y0, x1, y1 = self.wall(i)
+            if n%2 == 1:
+                x0, y0, x1, y1 = self.wall(i)
+            elif n%2 == 0:
+                x1, y1, x0, y0 = self.wall(i)
 
             # add points to coverage list
             pts = np.vstack((pts, np.array([[x0, y0 + self.dw/2], [x1, y1 + self.dw/2]])))
@@ -123,7 +128,5 @@ if __name__ == "__main__":
 
     # initialise farm
     farm = Algae_Farm(5, 5, 5, 10, 10, 40, 70)
-    # plot farm layout
-    farm.plot()
-    # show plot
-    plt.show()
+
+    print(farm.simple_coverage())

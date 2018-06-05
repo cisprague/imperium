@@ -12,4 +12,9 @@ class Indirect(Trajectory):
 
     def __init__(self, segments):
 
-        pass
+        # initialise base
+        Trajectory.__init__(self, segments)
+
+    def fitness(self, z):
+
+        # z = [T0, l00, sf0, ..., TN, l0N, sfN]
