@@ -1,42 +1,80 @@
-import sys
-sys.path.append("/home/cisprague/Dev/imperium/src")
-from imperium.dynamics import auv2d
-from imperium.segment import Indirect
-from imperium.environments.algae import Algae_Farm
-import matplotlib.pyplot as plt
-import numpy as np, pygmo as pg, pygmo_plugins_nonfree as pg7
+# Christopher Iliffe Sprague
+# christopher.iliffe.sprague@hgmail.com
 
-def main():
+def auv2d_tst():
 
-    # create an algae farm
-    farm = Algae_Farm(5, 5, 2, 6, 10, 40, 40)
-    pts = farm.simple_coverage()
+    import numpy as np
+    from imperium.dynamics.auv2d import AUV2D
 
-    # create first segment
-    seg = Indirect("auv2d", [10, 10], [100, 10, 100], [0, -1, -1], [1, 1, 1], True)
+    s = np.array([10, 10, 10, 10])
+    u = np.array([1, 1, 1])
+    l = np.random.randn(len(s))
+    fs = np.hstack((s, l))
+    thrust = 10
+    mass = 10
+    T = 1000
+    L = 100
+    alpha = [0.9]
+    sys = AUV2D(thrust, mass, T, L)
 
-    # departure state
+    print(sys.eom_state(s, u))
+    print(sys.jacobian_eom_state(s, u))
+    print(sys.eom_costate(s, l, u))
+    print(sys.jacobian_eom_costate(s, l, u))
+    print(sys.eom_fullstate(fs, u))
+    print(sys.jacobian_eom_fullstate(fs, u))
+    print(sys.lagrangian(s, u))
+    print(sys.hamiltonian(fs, u))
+    print(sys.control(fs))
+    print(sys.nondim_state(s))
+    print(sys.dim_state(s))
+    print(sys.nondim_params())
+    print(sys.dim_params())
+
+def segment_tst():
+
+    import numpy as np
+
+    # instantiate dynamics
+    from imperium.dynamics.auv2d import AUV2D
+    thrust = 10
+    mass = 10
+    T = 1000
+    L = 100
+    alpha = [0.11]
+    sys = AUV2D(thrust, mass, T, L)
+
+    # instantiate indirect freetime segment with dynamics
+    from imperium.segment import Indirect
+    seg = Indirect(sys, True)
+
+    # set the segment
     t0 = 0
-    s0 = np.array([farm.dsx, farm.dsy, 0, 0])
-    tf = 100
-    sf = np.hstack((pts[-1], [0, 0]))
-    seg.set(0, np.array([farm.dsx, farm.dsy, 0, 0]), 10, sf, np.random.randn(4), [0], True)
+    s0 = np.array([0, 0, 0, 0])
+    tf = 1000
+    sf = np.array([30, 30, 0, 0])
+    l0 = np.random.randn(len(s0))
+    seg.set(t0, s0, tf, sf, l0)
 
-    # optimisation problem
-    prob = pg.problem(seg)
+    # nondimensionalise segment for better numerics
+    seg.nondimensionalise()
 
-    # instantiate SNOPT algorithm
-    algo = pg7.snopt7(True, "/home/cisprague/Downloads/a.out")
-    algo.set_integer_option("Major iterations limit", 4000)
-    algo.set_integer_option("Iterations limit", 40000)
-    algo.set_numeric_option("Major optimality tolerance", 1e-2)
-    algo.set_numeric_option("Major feasibility tolerance", 1e-8)
-    algo = pg.algorithm(algo)
+    # compute mismatch
+    print(seg.mismatch(norm=True))
 
-    # instantiate population
-    pop = pg.population(prob, 1)
-    pop = algo.evolve(pop)
-    print(pop.champion_x)
+    # plot the trajectory
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(seg.states[:, 0], seg.states[:, 1], "k.-")
+    plt.show()
+
+
+
+
+
 
 if __name__ == "__main__":
-    main()
+    import os, sys; sys.path.append(os.path.dirname(__file__) + "/..")
+
+    #auv2d_tst()
+    segment_tst()

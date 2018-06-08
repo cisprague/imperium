@@ -3,146 +3,102 @@
 
 from scipy.integrate import ode
 import numpy as np, pygmo as pg
-import imperium.dynamics as dynamics
 
 class Segment(object):
 
-    # NOTE: only dimensional parameters are state and system parameters
+    # Trajectory formed between two boundary conditions.
+    # Can be optimised soley or implemented in imperium.trajectory.
 
-    def __init__(self, dn, alpha, ndunits, lbound=None, ubound=None):
+    def __init__(self, dynamics):
+        # dynamical system and its state bounds
+        self.dynamics = dynamics
+        # numerical integerator
+        self.integrator = ode(self.eom, self.eom_jac)
 
-        # dynamical system
-        self.dn = dn
-
-        # system parameters
-        self.alpha = np.array(alpha, float)
-
-        # nondimensionalisation units
-        self.ndunits = np.array(ndunits, float)
-
-        # control bounds
-        self.ulb, self.uub = lbound, ubound
+    def set_state_bounds(self, slb, sub):
+        self.slb, self.sub = self.slb, self.sub
 
     def set_times(self, t0, tf):
         self.t0 = float(t0)
         self.tf = float(tf)
 
     def set_states(self, s0, sf):
-        self.s0 = np.array(s0, float)
-        self.sf = np.array(sf, float)
+        self.s0 = np.array(s0)
+        self.sf = np.array(sf)
 
     def set(self, t0, s0, tf, sf):
         self.set_times(t0, tf)
         self.set_states(s0, sf)
 
     def record(self, t, s):
-
-        # times
+        # times and states
         self.times = np.append(self.times, t)
-
-        # states
         self.states = np.vstack((self.states, s))
 
-    def nondimensionalise(self, t0=None, tf=None, s0=None, sf=None, alpha=None):
+    def nondimensionalise(self):
+        self.t0 /= self.dynamics.T
+        self.tf /= self.dynamics.T
+        self.s0 = self.dynamics.nondim_state(self.s0)
+        self.sf = self.dynamics.nondim_state(self.sf)
+        self.dynamics.nondim_params()
+        return self.t0, self.s0, self.tf, self.sf
 
-        # nondimensionalise times
-        if t0 is not None: t0 /= self.ndunits[0]
-        if tf is not None: tf /= self.ndunits[0]
-
-        # nondimensionalise states
-        if s0 is not None: s0 = dynamics.__dict__[self.dn].nondimensionalise_state(*s0, *self.ndunits).flatten()
-        if sf is not None: sf = dynamics.__dict__[self.dn].nondimensionalise_state(*sf, *self.ndunits).flatten()
-
-        # nondimensionalise parameters
-        if alpha is not None: alpha = dynamics.__dict__[self.dn].nondimensionalise_parameters(*alpha, *self.ndunits).flatten()
-
-        return t0, tf, s0, sf, alpha
-
-    def dimensionalise(self, t0=None, tf=None, s0=None, sf=None, alpha=None):
-
-        # dimensionalise times
-        if t0 is not None: t0 *= self.ndunits[0]
-        if tf is not None: tf *= self.ndunits[0]
-
-        # dimensionalise states
-        if s0 is not None: s0 = dynamics.__dict__[self.dn].dimensionalise_state(*s0, *self.ndunits).flatten()
-        if sf is not None: sf = dynamics.__dict__[self.dn].dimensionalise_state(*sf, *self.ndunits).flatten()
-
-        # dimensionalise parameters
-        if alpha is not None: alpha = dynamics.__dict__[self.dn].dimensionalise_parameters(*alpha, *self.ndunits).flatten()
-
-        return t0, tf, s0, sf, alpha
-
+    def dimensionalise(self):
+        # redimensionalise
+        self.t0 *= self.dynamics.T
+        self.tf *= self.dynamics.T
+        self.s0 = self.dynamics.dim_state(self.s0)
+        self.sf = self.dynamics.dim_state(self.sf)
+        self.dynamics.dim_params()
+        return self.t0, self.s0, self.tf, self.sf
 
 
 class Indirect(Segment):
 
-    def __init__(self, dynamics, alpha, ndunits, lbound, ubound, freetime):
+    # Pontryagin's maximum principle.
+    # Must solve for segment duration and initial costates.
+    # z = [T, l0]
+
+    def __init__(self, dynamics, freetime):
 
         # initialise base
-        Segment.__init__(self, dynamics, alpha, ndunits, lbound, ubound)
+        Segment.__init__(self, dynamics)
 
         # free time transversality condition
-        self.freetime = freetime
+        self.freetime = bool(freetime)
 
-        # numerical integerator
-        self.integrator = ode(self.eom, self.eom_jac)
+    def eom(self, t, fs):
+        u = self.dynamics.control(fs)
+        return self.dynamics.eom_fullstate(fs, u)
+
+    def eom_jac(t, fs):
+        u = self.dynamics.control(fs)
+        return self.dynamics.jacobian_eom_fullstate(fs, u)
 
     def set_costates(self, l):
         self.l0 = np.array(l)
 
-    def set(self, t0, s0, tf, sf, l0, beta, bound):
+    def set(self, t0, s0, tf, sf, l0):
 
         # set states and times
         Segment.set(self, t0, s0, tf, sf)
+
         # set costates
         self.set_costates(l0)
-        # set homotopy parameters
-        self.beta = beta
-        # set control bounds
-        self.bound = bound
 
-    def record(self, t, fs):
+    def reset_records(self):
+        self.times = np.empty((1, 0))
+        self.states = np.empty((0, len(self.s0)*2))
 
-        # extract real state
-        s = fs[:int(len(fs)/2)]
-        # extract costate
-        l = fs[int(len(fs)/2):]
-
-        # redimensionalise time and state
-        t, _, s, _, _ = self.dimensionalise(s0=s, t0=t)
-
-        # record state and time
-        Segment.record(self, t, np.hstack((s, l)))
-
-        # record control
-        self.controls = np.vstack((self.controls, self.control(fs)))
-
-    def control(self, fs):
-
-        # unbounded control
-        u = dynamics.__dict__[self.dn].control(*fs, *self.alpha, *self.beta).flatten()
-        # bounded control
-        if self.bound:
-            u = np.array([min(max(var, lb), ub) for var, lb, ub in zip(u, self.ulb, self.uub)])
-        return u
-
-    def eom(self, t, fs):
-
-        # state transition
-        return dynamics.__dict__[self.dn].eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta).flatten()
-
-    def eom_jac(t, fs):
-
-        # state transition jacobian
-        return dynamics.__dict__[self.dn].jacobian_eom_fullstate(*fs, *self.control(fs), *self.alpha, *self.beta)
+    def dimensionalise_record(self):
+        # dimensionalse times and states
+        self.times *= self.dynamics.T
+        self.states[:, :4] = np.apply_along_axis(self.dynamics.dim_state, 1, self.states[:, :4])
 
     def propagate(self, intmeth='dop853', atol=1e-8, rtol=1e-8):
 
         # reset trajectory records
-        self.times = np.empty((1, 0))
-        self.states = np.empty((0, len(self.s0)*2))
-        self.controls = np.empty((0, len(self.ulb)))
+        self.reset_records()
 
         # set integration method
         self.integrator.set_integrator(intmeth, atol=atol, rtol=rtol, verbosity=1)
@@ -150,47 +106,36 @@ class Indirect(Segment):
         # set recorder
         self.integrator.set_solout(self.record)
 
-        # nondimensionalise problem
-        self.t0, self.tf, self.s0, self.sf, self.alpha = self.nondimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
-
         # set initial state
         self.integrator.set_initial_value(np.hstack((self.s0, self.l0)), self.t0)
 
         # integrate
         self.integrator.integrate(self.tf)
 
-        # redimensionalise
-        self.t0, self.tf, self.s0, self.sf, self.alpha = self.dimensionalise(self.t0, self.tf, self.s0, self.sf, self.alpha)
+        return self.times, self.states
 
-    def mismatch(self, intmeth='dop853', atol=1e-12, rtol=1e-12, norm=True):
+    def mismatch(self, intmeth='dop853', atol=1e-14, rtol=1e-14):
 
         # propagate the trajectory
         self.propagate(intmeth=intmeth, atol=atol, rtol=rtol)
 
         # extract final states, costates, and controls
-        sf = self.states[-1, :len(self.s0)]
-        lf = self.states[-1, len(self.s0):]
-        uf = self.controls[-1]
-
-        # nondimensionalise states
-        _, _, sf, _, _ = self.nondimensionalise(s0=sf)
-        _, _, sft, _, _ = self.nondimensionalise(s0=self.sf)
+        fsf = self.states[-1]
+        sf = fsf[:len(self.s0)]
+        lf = fsf[len(self.s0):]
+        uf = self.dynamics.control(fsf)
 
         # compute mismatch
-        ceq = sf - sft
+        ceq = sf - self.sf
 
         # if free time problem
         if self.freetime:
 
             # compute final hamiltonian
-            H = dynamics.__dict__[self.dn].hamiltonian(*sf, *lf, *uf, *self.alpha, *self.beta)
+            H = self.dynamics.hamiltonian(fsf, uf)
 
             # add to equality constraint
             ceq = np.hstack((ceq, [H]))
-
-        # normalise constraint vector
-        if norm:
-            ceq = ceq/np.linalg.norm(ceq)
 
         return ceq
 
@@ -199,12 +144,13 @@ class Indirect(Segment):
 
     def get_nec(self):
         neq = len(self.s0)
-        if self.freetime: neq += 1
+        if self.freetime:
+            neq += 1
         return neq
 
     def get_bounds(self):
-        lb = [self.ndunits[0]/1000] + [-100]*len(self.s0)
-        ub = [self.ndunits[0]] + [100]*len(self.s0)
+        lb = [self.dynamics.T/100] + [-10]*len(self.s0)
+        ub = [self.dynamics.T] + [10]*len(self.s0)
         return (lb, ub)
 
     def fitness(self, z):
@@ -216,9 +162,37 @@ class Indirect(Segment):
         self.set_costates(z[1:])
 
         # compute mismatch
-        ceq = self.mismatch(norm=False)
+        ceq = self.mismatch()
 
         return np.hstack(([1], ceq))
 
     def gradient(self, z):
         return pg.estimate_gradient(self.fitness, z)
+
+    def solve(self, tol=1e-5):
+
+        # nondimensionalise problem
+        self.nondimensionalise()
+
+        # instantiate optimisation problem
+        prob = pg.problem(self)
+
+        # instantiate algorithm
+        algo = pg.ipopt()
+        algo.set_numeric_option("tol", tol)
+        algo = pg.algorithm(algo)
+        algo.set_verbosity(1)
+
+        # instantiate and evolve population
+        pop = pg.population(prob, 1)
+        pop = algo.evolve(pop)
+
+        # extract solution
+        zopt = pop.champion_x
+        self.fitness(zopt)
+
+        # redimensionalise problem
+        self.dimensionalise()
+
+        # redimensionalise records
+        self.dimensionalise_record()
