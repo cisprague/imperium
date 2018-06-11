@@ -68,6 +68,28 @@ def segment_tst():
     plt.plot(seg.states[:, 0], seg.states[:, 1], "k.-")
     plt.show()
 
+def trajectory_tst():
+
+    import numpy as np, sys
+
+    # instantiate dynamics
+    from imperium.dynamics.auv2d import AUV2D
+    thrust = 10
+    mass = 10
+    T = 1000
+    L = 100
+    alpha = [0.11]
+    sys = AUV2D(thrust, mass, T, L)
+
+    # instantiate indirect segments with dynamics
+    from imperium.segment import Indirect
+    segs = [Indirect(sys), Indirect(sys)]
+
+    # instantiate indirect trajectory
+    from imperium.trajectory import Indirect
+    traj = Indirect(segs)
+
+
 
 
 
@@ -77,4 +99,5 @@ if __name__ == "__main__":
     import os, sys; sys.path.append(os.path.dirname(__file__) + "/..")
 
     #auv2d_tst()
-    segment_tst()
+    #segment_tst()
+    trajectory_tst()

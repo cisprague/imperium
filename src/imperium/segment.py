@@ -2,7 +2,7 @@
 # christopher.iliffe.sprague@gmail.com
 
 from scipy.integrate import ode
-import numpy as np, pygmo as pg
+import numpy as np#, pygmo as pg
 
 class Segment(object):
 
@@ -59,7 +59,7 @@ class Indirect(Segment):
     # Must solve for segment duration and initial costates.
     # z = [T, l0]
 
-    def __init__(self, dynamics, freetime):
+    def __init__(self, dynamics, freetime=True):
 
         # initialise base
         Segment.__init__(self, dynamics)
@@ -78,7 +78,7 @@ class Indirect(Segment):
     def set_costates(self, l):
         self.l0 = np.array(l)
 
-    def set(self, t0, s0, tf, sf, l0):
+    def set(self, t0, s0, tf, sf, l0, freetime=False):
 
         # set states and times
         Segment.set(self, t0, s0, tf, sf)

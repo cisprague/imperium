@@ -21,8 +21,3 @@ class Indirect(Trajectory):
 
         # z = [T0, l00, sf0, ..., TN, l0N, sfN]
         z = z.reshape((1 + self.segments[0].dynamics.sdim*2, self.nbc))
-
-
-if __name__ == "__main__":
-
-    pass
