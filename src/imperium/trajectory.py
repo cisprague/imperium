@@ -2,13 +2,15 @@
 # christopher.iliffe.sprague@gmail.com
 
 import numpy as np
+from imperium.segment import Indirect
 
 class Trajectory(object):
 
-    def __init__(self, segments):
+    def __init__(self, dynamics):
 
         # segments
-        self.segments = segments
+        self.dynamics = dynamics
+
 
 class Indirect(Trajectory):
 
@@ -17,7 +19,9 @@ class Indirect(Trajectory):
         # initialise base
         Trajectory.__init__(self, segments)
 
+
     def fitness(self, z):
 
-        # z = [T0, l00, sf0, ..., TN, l0N, sfN]
+        # z = [s00, T0, l00, sf0, ..., TN, l0N, sfN]
+
         z = z.reshape((1 + self.segments[0].dynamics.sdim*2, self.nbc))
