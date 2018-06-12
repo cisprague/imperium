@@ -139,7 +139,7 @@ class Indirect(Segment):
     def dimensionalise_record(self):
         # dimensionalse times and states
         self.times *= self.dynamics.T
-        self.states[:, :4] = np.apply_along_axis(self.dynamics.dim_state, 1, self.states[:, :4])
+        self.states[:, :self.dynamics.sdim] = np.apply_along_axis(self.dynamics.dim_state, 1, self.states[:, :self.dynamics.sdim])
 
     def propagate(self, intmeth='dop853', atol=1e-8, rtol=1e-8):
 
