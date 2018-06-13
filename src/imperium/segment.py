@@ -197,12 +197,12 @@ class Indirect(Segment):
         return 1
 
     def get_nec(self):
-        neq = self.dynamics.sdim
+        nec = self.dynamics.sdim
         #neq += sum(self.tv0)
-        #neq += sum(self.tvf)
+        #nec += sum(self.tvf)
         if self.freetime:
-            neq += 1
-        return neq
+            nec += 1
+        return nec
 
     def get_bounds(self):
         lb = [self.Tlb, *self.s0lb, *self.sflb, *[-100]*self.dynamics.sdim]

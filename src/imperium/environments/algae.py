@@ -101,24 +101,74 @@ class Algae_Farm(object):
     def simple_coverage(self):
 
         # first wall
-        x1, y1, x0, y0 = self.wall(self.N - 1)
+        #xw, yw, xe, ye = self.wall(self.N - 1)
+        #x0, y0 = xe, ye + self.dw/2
+        #x1, y1 = xw, yw + self.dw/2
+        #x2, y2 = xw - self.dx/2, yw
 
         # coverage points
-        pts = np.array([[x0, y0 - self.dw/2], [x1, y1 - self.dw/2]])
+        #pts = np.array([[x0, y0], [x1, y1], [x2, y2]])
+
+        # covergage points
+        pts = np.empty(shape=(0, 2), dtype=float)
+
+        # counter for cardinal direction
         n = 0
 
         # coverage points for all walls
-        for i in reversed(range(self.N - 2)):
+        for i in reversed(range(self.N)):
+
+            # wall points
+            xw, yw, xe, ye = self.wall(i)
+
+            # if east
+            if n%2 == 0:
+                pts = np.vstack((
+                    pts,
+                    [
+                        [xe, ye + self.dw/2],
+                        [xw, yw + self.dw/2],
+                        [xw - self.dx/2, yw]
+                    ]
+                ))
+
+                # if last wall
+                if n == self.N - 1:
+                    pts = np.vstack((
+                        pts,
+                        [
+                            [xw, yw - self.dw/2],
+                            [xe, ye - self.dw/2]
+                        ]
+                    ))
+
+
+            # if west
+            elif n%2 == 1:
+                pts = np.vstack((
+                    pts,
+                    [
+                        [xw, yw + self.dw/2],
+                        [xe, ye + self.dw/2],
+                        [xe + self.dx/2, ye]
+                    ]
+                ))
+
+                # if last wall
+                if n == self.N - 1:
+                    pts = np.vstack((
+                        pts,
+                        [
+                            [xe, ye - self.dw/2],
+                            [xw, ye - self.dw/2]
+                        ]
+                    ))
+
+            # append points
+
             n += 1
 
-            # extract coordinates
-            if n%2 == 1:
-                x0, y0, x1, y1 = self.wall(i)
-            elif n%2 == 0:
-                x1, y1, x0, y0 = self.wall(i)
 
-            # add points to coverage list
-            pts = np.vstack((pts, np.array([[x0, y0 + self.dw/2], [x1, y1 + self.dw/2]])))
 
         return pts
 
@@ -127,6 +177,13 @@ class Algae_Farm(object):
 if __name__ == "__main__":
 
     # initialise farm
-    farm = Algae_Farm(5, 5, 5, 10, 10, 40, 70)
+    farm = Algae_Farm(5, 10, 10, 10, 3, 30, 50)
+    pts = farm.simple_coverage()
 
-    print(farm.simple_coverage())
+    # plot
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(1)
+    farm.plot(ax)
+    ax.plot(pts.T[0], pts.T[1], "k.-")
+
+    plt.show()

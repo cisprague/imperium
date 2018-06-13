@@ -38,24 +38,38 @@ class Indirect(Trajectory):
         # instantiate segments
         self.segments = [segment.Indirect(self.dynamics) for i in range(self.nseg)]
 
+        # set segment bounds
+        for i in range(self.nseg):
+            self.segments[i].set_state_bounds(self.slb[i], self.sub[i], self.slb[i+1], self.sub[i+1])
+
     def set_duration_bounds(self, Tlb, Tub):
+
+        # set duration bounds for each trajectory
         Trajectory.set_duration_bounds(self, Tlb, Tub)
+
+        # free time condition
         if Tlb == Tub:
             self.freetime = False
         else:
             self.freetime = True
 
+        # set each trajectory
+        for i in range(self.nseg):
+            self.segments[i].freetime = False
+
+        if self.freetime: self.segments[-1].freetime = True
+
     def get_bounds(self):
         lb = np.hstack((
             np.full((self.nseg, 1), self.Tlb),
             self.slb[1:],
-            np.full((self.nseg, self.dynamics.sdim), -100)
+            np.full((self.nseg, self.dynamics.sdim), -1000)
         )).flatten()
         lb = np.hstack((self.slb[0], lb))
         ub = np.hstack((
             np.full((self.nseg, 1), self.Tub),
             self.sub[1:],
-            np.full((self.nseg, self.dynamics.sdim), 100)
+            np.full((self.nseg, self.dynamics.sdim), 1000)
         )).flatten()
         ub = np.hstack((self.sub[0], ub))
         return lb, ub
@@ -86,26 +100,22 @@ class Indirect(Trajectory):
         # set segments
         for i in range(self.nseg):
             self.segments[i].set(tl[i], sl[i], tl[i+1], sl[i+1], ll[i])
-            self.segments[i].freetime = False
-
-        # if free time
-        if self.freetime: self.segments[-1].freetime = True
 
         # compute mismatch
-        ceq = np.hstack([self.segments[i].mismatch() for i in range(self.nseg)])
-        #ceq = np.hstack(self.map(self.mismatch, range(self.nseg)))
+        ceq = np.hstack([self.segments[i].mismatch(atol=self.atol, rtol=self.rtol) for i in range(self.nseg)])
 
-        '''
-        # enforce costate continuation
+        # enforce smoothness
         for i in range(self.nseg - 1):
 
-            # final costates
+            # 1st segment final costates
             lf = self.segments[i].states[-1, self.dynamics.sdim:]
 
-            # mismatch
-            ceq = np.hstack(([1], ceq, self.segments[i+1].l0 - lf))
+            # 2nd segment initial costates
+            l0 = self.segments[i].l0
 
-        '''
+            # compute mismatch
+            ceq = np.hstack((ceq, l0 - lf))
+
 
         # enforce time order
         ciq = [tl[i] - tl[i+1] for i in range(self.nseg)]
@@ -113,7 +123,8 @@ class Indirect(Trajectory):
         return np.hstack(([1], ceq, ciq))
 
     def get_nec(self):
-        nec = self.dynamics.sdim*self.nseg + 1# + self.dynamics.sdim*(self.nseg - 1)
+        nec = self.dynamics.sdim*self.nseg + self.dynamics.sdim*(self.nseg - 1)
+        if self.freetime: nec += 1
         return nec
 
     def get_nic(self):
@@ -151,7 +162,12 @@ class Indirect(Trajectory):
         # dimensionalise dynamics
         self.dynamics.dim_params()
 
-    def solve(self, otol=1e-5, atol=1e-10, rtol=1e-10):
+    def solve(self, otol=1e-5, atol=1e-14, rtol=1e-14):
+
+        # set optimisation params
+        self.otol = otol
+        self.atol = atol
+        self.rtol = rtol
 
         # nondimensionalise problem
         self.nondimensionalise()
@@ -161,7 +177,7 @@ class Indirect(Trajectory):
 
         # instantiate algorithm
         algo = pg.ipopt()
-        algo.set_numeric_option("tol", otol)
+        algo.set_numeric_option("tol", self.otol)
         algo = pg.algorithm(algo)
         algo.set_verbosity(1)
 
