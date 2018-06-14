@@ -63,13 +63,13 @@ class Indirect(Trajectory):
         lb = np.hstack((
             np.full((self.nseg, 1), self.Tlb),
             self.slb[1:],
-            np.full((self.nseg, self.dynamics.sdim), -1000)
+            np.full((self.nseg, self.dynamics.sdim), -100)
         )).flatten()
         lb = np.hstack((self.slb[0], lb))
         ub = np.hstack((
             np.full((self.nseg, 1), self.Tub),
             self.sub[1:],
-            np.full((self.nseg, self.dynamics.sdim), 1000)
+            np.full((self.nseg, self.dynamics.sdim), 100)
         )).flatten()
         ub = np.hstack((self.sub[0], ub))
         return lb, ub
@@ -104,6 +104,7 @@ class Indirect(Trajectory):
         # compute mismatch
         ceq = np.hstack([self.segments[i].mismatch(atol=self.atol, rtol=self.rtol) for i in range(self.nseg)])
 
+        '''
         # enforce smoothness
         for i in range(self.nseg - 1):
 
@@ -115,6 +116,7 @@ class Indirect(Trajectory):
 
             # compute mismatch
             ceq = np.hstack((ceq, l0 - lf))
+        '''
 
 
         # enforce time order
@@ -123,7 +125,7 @@ class Indirect(Trajectory):
         return np.hstack(([1], ceq, ciq))
 
     def get_nec(self):
-        nec = self.dynamics.sdim*self.nseg + self.dynamics.sdim*(self.nseg - 1)
+        nec = self.dynamics.sdim*self.nseg# + self.dynamics.sdim*(self.nseg - 1)
         if self.freetime: nec += 1
         return nec
 
